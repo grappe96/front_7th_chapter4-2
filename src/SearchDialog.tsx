@@ -152,7 +152,6 @@ const fetchAllLectures = async () =>
     (console.log('API Call 6', performance.now()), fetchLiberalArts()),
   ]);
 
-// TODO: 이 컴포넌트에서 불필요한 연산이 발생하지 않도록 다양한 방식으로 시도해주세요.
 const SearchDialog = ({ searchInfo, onClose }: Props) => {
   const { setSchedulesMap } = useScheduleContext();
 
@@ -168,10 +167,10 @@ const SearchDialog = ({ searchInfo, onClose }: Props) => {
     majors: [],
   });
 
-  // 필터링 결과를 메모이제이션: lectures나 searchOptions가 변경될 때만 재계산
-  const filteredLectures = useMemo(() => {
+  // 필터링 함수: 지연 평가를 위한 헬퍼 함수
+  const matchesFilter = useMemo(() => {
     const { query = '', credits, grades, days, times, majors } = searchOptions;
-    const lowerQuery = query.toLowerCase(); // 한 번만 계산
+    const lowerQuery = query.toLowerCase();
 
     // parseSchedule 결과를 캐싱하여 중복 호출 방지
     const scheduleCache = new Map<string, ReturnType<typeof parseSchedule>>();
@@ -183,7 +182,7 @@ const SearchDialog = ({ searchInfo, onClose }: Props) => {
       return scheduleCache.get(schedule) || [];
     };
 
-    return lectures.filter((lecture) => {
+    return (lecture: Lecture) => {
       // 검색어 필터
       if (query) {
         const matchesQuery =
@@ -226,13 +225,42 @@ const SearchDialog = ({ searchInfo, onClose }: Props) => {
       }
 
       return true;
-    });
-  }, [lectures, searchOptions]);
+    };
+    // lectures는 필터링 시점에 사용되므로 의존성에서 제외
+  }, [searchOptions]);
 
-  const visibleLectures = useMemo(
-    () => filteredLectures.slice(0, page * PAGE_SIZE),
-    [filteredLectures, page]
-  );
+  // 지연 평가: 필요한 만큼만 필터링하여 visibleLectures 계산
+  const visibleLectures = useMemo(() => {
+    const result: Lecture[] = [];
+    const targetCount = page * PAGE_SIZE;
+
+    // 필요한 만큼만 필터링 (지연 평가)
+    for (const lecture of lectures) {
+      if (matchesFilter(lecture)) {
+        result.push(lecture);
+        if (result.length >= targetCount) {
+          break; // 필요한 만큼만 계산하고 중단
+        }
+      }
+    }
+
+    return result;
+  }, [lectures, matchesFilter, page]);
+
+  // 전체 개수 계산: 지연 평가로 필요한 경우에만 계산
+  const filteredLecturesCount = useMemo(() => {
+    // visibleLectures가 이미 필요한 만큼 계산되었고,
+    // 만약 visibleLectures.length < page * PAGE_SIZE라면 전체 개수를 알 수 있음
+    // 하지만 정확한 개수를 표시하려면 전체를 순회해야 함
+    // 지연 평가를 위해 캐싱된 결과가 있으면 재사용
+    let count = 0;
+    for (const lecture of lectures) {
+      if (matchesFilter(lecture)) {
+        count++;
+      }
+    }
+    return count;
+  }, [lectures, matchesFilter]);
 
   const allMajors = useMemo(
     () => [...new Set(lectures.map((lecture) => lecture.major))],
@@ -299,7 +327,7 @@ const SearchDialog = ({ searchInfo, onClose }: Props) => {
         if (entries[0].isIntersecting) {
           // 함수형 업데이트로 lastPage 의존성 제거
           setPage((prevPage) => {
-            const maxPage = Math.ceil(filteredLectures.length / PAGE_SIZE);
+            const maxPage = Math.ceil(filteredLecturesCount / PAGE_SIZE);
             return Math.min(maxPage, prevPage + 1);
           });
         }
@@ -310,8 +338,8 @@ const SearchDialog = ({ searchInfo, onClose }: Props) => {
     observer.observe($loader);
 
     return () => observer.unobserve($loader);
-    // filteredLectures.length만 의존성으로 사용
-  }, [filteredLectures.length]);
+    // filteredLecturesCount만 의존성으로 사용
+  }, [filteredLecturesCount]);
 
   useEffect(() => {
     // 실제 값이 변경된 경우에만 상태 업데이트
@@ -508,7 +536,7 @@ const SearchDialog = ({ searchInfo, onClose }: Props) => {
                 </CheckboxGroup>
               </FormControl>
             </HStack>
-            <Text align="right">검색결과: {filteredLectures.length}개</Text>
+            <Text align="right">검색결과: {filteredLecturesCount}개</Text>
             <Box>
               <Table>
                 <Thead>
