@@ -29,7 +29,7 @@ import {
   VStack,
   Wrap,
 } from '@chakra-ui/react';
-import { useScheduleContext } from './ScheduleContext.tsx';
+import { useSetSchedulesMap } from './ScheduleContext.tsx';
 import { Lecture } from './types.ts';
 import { parseSchedule } from './utils.ts';
 import axios, { AxiosResponse } from 'axios';
@@ -85,36 +85,33 @@ const PAGE_SIZE = 100;
 // 테이블 행 컴포넌트: 메모이제이션하여 추가되는 행만 렌더링
 interface LectureRowProps {
   lecture: Lecture;
-  index: number;
   onAddSchedule: (lecture: Lecture) => void;
 }
 
-const LectureRow = memo(
-  ({ lecture, index, onAddSchedule }: LectureRowProps) => {
-    return (
-      <Tr key={`${lecture.id}-${index}`}>
-        <Td width="100px">{lecture.id}</Td>
-        <Td width="50px">{lecture.grade}</Td>
-        <Td width="200px">{lecture.title}</Td>
-        <Td width="50px">{lecture.credits}</Td>
-        <Td width="150px" dangerouslySetInnerHTML={{ __html: lecture.major }} />
-        <Td
-          width="150px"
-          dangerouslySetInnerHTML={{ __html: lecture.schedule }}
-        />
-        <Td width="80px">
-          <Button
-            size="sm"
-            colorScheme="green"
-            onClick={() => onAddSchedule(lecture)}
-          >
-            추가
-          </Button>
-        </Td>
-      </Tr>
-    );
-  }
-);
+const LectureRow = memo(({ lecture, onAddSchedule }: LectureRowProps) => {
+  return (
+    <Tr>
+      <Td width="100px">{lecture.id}</Td>
+      <Td width="50px">{lecture.grade}</Td>
+      <Td width="200px">{lecture.title}</Td>
+      <Td width="50px">{lecture.credits}</Td>
+      <Td width="150px" dangerouslySetInnerHTML={{ __html: lecture.major }} />
+      <Td
+        width="150px"
+        dangerouslySetInnerHTML={{ __html: lecture.schedule }}
+      />
+      <Td width="80px">
+        <Button
+          size="sm"
+          colorScheme="green"
+          onClick={() => onAddSchedule(lecture)}
+        >
+          추가
+        </Button>
+      </Td>
+    </Tr>
+  );
+});
 
 LectureRow.displayName = 'LectureRow';
 
@@ -153,7 +150,7 @@ const fetchAllLectures = async () =>
   ]);
 
 const SearchDialog = ({ searchInfo, onClose }: Props) => {
-  const { setSchedulesMap } = useScheduleContext();
+  const setSchedulesMap = useSetSchedulesMap();
 
   const loaderWrapperRef = useRef<HTMLDivElement>(null);
   const loaderRef = useRef<HTMLDivElement>(null);
@@ -559,7 +556,6 @@ const SearchDialog = ({ searchInfo, onClose }: Props) => {
                       <LectureRow
                         key={`${lecture.id}-${index}`}
                         lecture={lecture}
-                        index={index}
                         onAddSchedule={addSchedule}
                       />
                     ))}
